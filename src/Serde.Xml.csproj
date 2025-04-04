@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <NoWarn>$(NoWarn);CS3021</NoWarn>
+
+    <!-- Package settings -->
+    <PackageId>Serde.Xml</PackageId>
+    <Version>0.3.0-preview1</Version>
+    <IsPackable>true</IsPackable>
+    <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/serdedotnet/serde.xml</RepositoryUrl>
+    <Description>XML serialization backend for Serde</Description>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Antlr4.Runtime.Standard" />
+    <PackageReference Include="serde" />
+  </ItemGroup>
+
+</Project>
