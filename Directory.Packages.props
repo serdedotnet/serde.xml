@@ -4,7 +4,7 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="Antlr4.Runtime.Standard" Version="4.9.3" />
+    <PackageVersion Include="Antlr4.Runtime.Standard" Version="4.13.1" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.13.12" />
     <PackageVersion Include="FsCheck" Version="2.16.6" />
     <PackageVersion Include="FsCheck.Xunit" Version="2.16.6" />
