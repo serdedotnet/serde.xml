@@ -113,6 +113,32 @@ public sealed partial class XmlSerializer : ISerializer
         _writer.WriteValue(d);
     }
 
+    public void WriteI128(Int128 i128)
+    {
+        _writer.WriteValue(i128.ToString());
+    }
+
+    public void WriteU128(UInt128 u128)
+    {
+        _writer.WriteValue(u128.ToString());
+    }
+
+    public void WriteDateTime(DateTime dateTime)
+    {
+        _writer.WriteValue(dateTime);
+    }
+
+    public void WriteDateTimeOffset(DateTimeOffset dateTimeOffset)
+    {
+        _writer.WriteValue(dateTimeOffset);
+    }
+
+    public void WriteBytes(ReadOnlyMemory<byte> bytes)
+    {
+        var array = bytes.ToArray();
+        _writer.WriteBase64(array, 0, array.Length);
+    }
+
     private sealed class ReflectionTypeNameFormattingListener : ReflectionTypeNameBaseListener
     {
         private readonly StringBuilder _buffer = new StringBuilder();
@@ -234,6 +260,31 @@ public sealed partial class XmlSerializer : ISerializer
             _serializer.WriteDecimal(d);
         }
 
+        public void WriteI128(ISerdeInfo typeInfo, int index, Int128 i128)
+        {
+            _serializer.WriteI128(i128);
+        }
+
+        public void WriteU128(ISerdeInfo typeInfo, int index, UInt128 u128)
+        {
+            _serializer.WriteU128(u128);
+        }
+
+        public void WriteDateTime(ISerdeInfo typeInfo, int index, DateTime dateTime)
+        {
+            _serializer.WriteDateTime(dateTime);
+        }
+
+        public void WriteDateTimeOffset(ISerdeInfo typeInfo, int index, DateTimeOffset dateTimeOffset)
+        {
+            _serializer.WriteDateTimeOffset(dateTimeOffset);
+        }
+
+        public void WriteBytes(ISerdeInfo typeInfo, int index, ReadOnlyMemory<byte> bytes)
+        {
+            _serializer.WriteBytes(bytes);
+        }
+
         public void WriteString(ISerdeInfo typeInfo, int index, string s)
         {
             _serializer.WriteString(s);
@@ -323,6 +374,11 @@ public sealed partial class XmlSerializer : ISerializer
         public void WriteU16(ISerdeInfo typeInfo, int index, ushort u16) => WriteEnumName(typeInfo, index);
         public void WriteU32(ISerdeInfo typeInfo, int index, uint u32) => WriteEnumName(typeInfo, index);
         public void WriteU64(ISerdeInfo typeInfo, int index, ulong u64) => WriteEnumName(typeInfo, index);
+        public void WriteI128(ISerdeInfo typeInfo, int index, Int128 i128) => WriteEnumName(typeInfo, index);
+        public void WriteU128(ISerdeInfo typeInfo, int index, UInt128 u128) => WriteEnumName(typeInfo, index);
+        public void WriteDateTime(ISerdeInfo typeInfo, int index, DateTime dateTime) => ThrowInvalidEnum();
+        public void WriteDateTimeOffset(ISerdeInfo typeInfo, int index, DateTimeOffset dateTimeOffset) => ThrowInvalidEnum();
+        public void WriteBytes(ISerdeInfo typeInfo, int index, ReadOnlyMemory<byte> bytes) => ThrowInvalidEnum();
         private void ThrowInvalidEnum() => throw new InvalidOperationException("Invalid operation for enum serialization, expected integer value.");
     }
 
@@ -411,6 +467,37 @@ public sealed partial class XmlSerializer : ISerializer
 
         public void WriteDecimal(ISerdeInfo typeInfo, int index, decimal d)
             => WriteField(typeInfo, index, d, DecimalProxy.Instance);
+
+        public void WriteI128(ISerdeInfo typeInfo, int index, Int128 i128)
+            => WriteField(typeInfo, index, i128, I128Proxy.Instance);
+
+        public void WriteU128(ISerdeInfo typeInfo, int index, UInt128 u128)
+            => WriteField(typeInfo, index, u128, U128Proxy.Instance);
+
+        public void WriteDateTime(ISerdeInfo typeInfo, int index, DateTime dateTime)
+            => WriteField(typeInfo, index, dateTime, DateTimeProxy.Instance);
+
+        public void WriteDateTimeOffset(ISerdeInfo typeInfo, int index, DateTimeOffset dateTimeOffset)
+            => WriteField(typeInfo, index, dateTimeOffset, DateTimeOffsetProxy.Instance);
+
+        public void WriteBytes(ISerdeInfo typeInfo, int index, ReadOnlyMemory<byte> bytes)
+        {
+            var name = typeInfo.GetFieldStringName(index);
+            foreach (var attr in typeInfo.GetFieldAttributes(index))
+            {
+                if (attr.AttributeType == typeof(XmlAttributeAttribute))
+                {
+                    _parent._writer.WriteStartAttribute(name);
+                    _parent.WriteBytes(bytes);
+                    _parent._writer.WriteEndAttribute();
+                    return;
+                }
+            }
+
+            _parent._writer.WriteStartElement(name);
+            _parent.WriteBytes(bytes);
+            _parent._writer.WriteEndElement();
+        }
 
         public void WriteString(ISerdeInfo typeInfo, int index, string s)
             => WriteField(typeInfo, index, s, StringProxy.Instance);
