@@ -4,9 +4,6 @@ using System.IO;
 using System.Text;
 using System.Xml;
 using System.Xml.Serialization;
-using Antlr4.Runtime;
-using Antlr4.Runtime.Misc;
-using Antlr4.Runtime.Tree;
 
 namespace Serde.Xml;
 
@@ -162,47 +159,9 @@ public sealed partial class XmlSerializer : ISerializer
         _writer.WriteBase64(array, 0, array.Length);
     }
 
-    private sealed class ReflectionTypeNameFormattingListener : ReflectionTypeNameBaseListener
-    {
-        private readonly StringBuilder _buffer = new StringBuilder();
-        public override void ExitTypeName([NotNull] ReflectionTypeNameParser.TypeNameContext context)
-        {
-            var brackets = context.BRACKETS();
-            for (int i = 0; i < brackets.Length; i++)
-            {
-                _buffer.Append("ArrayOf");
-            }
-            var name = context.qualifiedName().children[^1].ToString();
-            name = name switch
-            {
-                "Int32" => "Int",
-                "UInt32" => "UnsignedInt",
-                _ => name
-            };
-            _buffer.Append(name);
-        }
-        public override void EnterGenerics([NotNull] ReflectionTypeNameParser.GenericsContext context)
-        {
-            _buffer.Append("Of");
-        }
-
-        public override string ToString()
-        {
-            return _buffer.ToString();
-        }
-    }
-
     private static string FormatTypeName(string name)
     {
-        var stream = CharStreams.fromString(name);
-        var lexer = new ReflectionTypeNameLexer(stream);
-        var tokens = new CommonTokenStream(lexer);
-        var parser = new ReflectionTypeNameParser(tokens);
-        parser.BuildParseTree = true;
-        var tree = parser.topTypeName();
-        var formattingListener = new ReflectionTypeNameFormattingListener();
-        ParseTreeWalker.Default.Walk(formattingListener, tree);
-        return formattingListener.ToString();
+        return ReflectionTypeNameParser.FormatForXml(name);
     }
 
     sealed partial class SerializeCollectionImpl : ITypeSerializer
