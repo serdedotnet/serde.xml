@@ -16,7 +16,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Antlr4.Runtime.Standard" />
     <PackageReference Include="serde" />
   </ItemGroup>
 
