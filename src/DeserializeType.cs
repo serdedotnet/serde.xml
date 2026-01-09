@@ -13,17 +13,21 @@ partial class XmlSerializer
         /// <summary>
         /// Deserializer for custom types (classes/structs with fields).
         /// </summary>
-        private struct DeserializeType : ITypeDeserializer
+        private sealed class DeserializeType : ITypeDeserializer
         {
             private readonly Deserializer _deserializer;
-            private readonly int _attributeCount;
+            private int _attributeCount;
             private int _currentAttributeIndex;
             private bool _inAttributes;
 
             public DeserializeType(Deserializer deserializer)
             {
                 _deserializer = deserializer;
-                _attributeCount = deserializer._reader.AttributeCount;
+            }
+
+            public void Initialize()
+            {
+                _attributeCount = _deserializer._reader.AttributeCount;
                 _currentAttributeIndex = 0;
                 _inAttributes = _attributeCount > 0;
             }

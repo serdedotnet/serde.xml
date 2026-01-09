@@ -12,6 +12,9 @@ partial class XmlSerializer
     private sealed partial class Deserializer : IDeserializer
     {
         private readonly XmlReader _reader;
+        private readonly DeserializeType _deserializeType;
+        private readonly DeserializeCollection _deserializeCollection;
+        private readonly DeserializeEnum _deserializeEnum;
 
         public Deserializer(string xml)
         {
@@ -26,6 +29,11 @@ partial class XmlSerializer
             _reader.MoveToContent();
             // Read the root element start
             _reader.ReadStartElement();
+
+            // Initialize cached deserializers
+            _deserializeType = new DeserializeType(this);
+            _deserializeCollection = new DeserializeCollection(this);
+            _deserializeEnum = new DeserializeEnum(this);
         }
 
         public void Dispose()
@@ -136,15 +144,17 @@ partial class XmlSerializer
         {
             if (typeInfo.Kind == InfoKind.List || typeInfo.Kind == InfoKind.Dictionary)
             {
-                return new DeserializeCollection(this, typeInfo);
+                _deserializeCollection.Initialize(typeInfo);
+                return _deserializeCollection;
             }
             else if (typeInfo.Kind == InfoKind.CustomType || typeInfo.Kind == InfoKind.Nullable)
             {
-                return new DeserializeType(this);
+                _deserializeType.Initialize();
+                return _deserializeType;
             }
             else if (typeInfo.Kind == InfoKind.Enum)
             {
-                return new DeserializeEnum(this, typeInfo);
+                return _deserializeEnum;
             }
             throw new InvalidOperationException($"Unexpected type kind: {typeInfo.Kind}");
         }

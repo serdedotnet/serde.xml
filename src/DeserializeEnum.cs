@@ -11,17 +11,13 @@ partial class XmlSerializer
         /// <summary>
         /// Deserializer for enums.
         /// </summary>
-        private struct DeserializeEnum : ITypeDeserializer
+        private sealed class DeserializeEnum : ITypeDeserializer
         {
             private readonly Deserializer _deserializer;
-            private readonly ISerdeInfo _typeInfo;
-            private string? _value;
 
-            public DeserializeEnum(Deserializer deserializer, ISerdeInfo typeInfo)
+            public DeserializeEnum(Deserializer deserializer)
             {
                 _deserializer = deserializer;
-                _typeInfo = typeInfo;
-                _value = null;
             }
 
             public int? SizeOpt => 1;
@@ -33,17 +29,12 @@ partial class XmlSerializer
 
             public (int, string?) TryReadIndexWithName(ISerdeInfo info)
             {
-                if (_value != null)
-                {
-                    return (ITypeDeserializer.EndOfType, null);
-                }
-
                 // Read the enum value as a string. Reader should be advanced to the content.
-                _value = _deserializer._reader.ReadContentAsString();
+                var value = _deserializer._reader.ReadContentAsString();
 
                 // Try to find the index by matching the string value
-                var index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(_value));
-                return (index, index == ITypeDeserializer.IndexNotFound ? _value : null);
+                var index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(value));
+                return (index, index == ITypeDeserializer.IndexNotFound ? value : null);
             }
 
             public void End(ISerdeInfo info) { }

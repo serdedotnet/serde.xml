@@ -13,19 +13,19 @@ partial class XmlSerializer
         /// <summary>
         /// Deserializer for collections (arrays, lists).
         /// </summary>
-        private struct DeserializeCollection : ITypeDeserializer
+        private sealed class DeserializeCollection : ITypeDeserializer
         {
             private readonly Deserializer _deserializer;
-            private readonly ISerdeInfo _typeInfo;
             private int _index;
-            private readonly int _depth;
 
-            public DeserializeCollection(Deserializer deserializer, ISerdeInfo typeInfo)
+            public DeserializeCollection(Deserializer deserializer)
             {
                 _deserializer = deserializer;
-                _typeInfo = typeInfo;
+            }
+
+            public void Initialize(ISerdeInfo typeInfo)
+            {
                 _index = 0;
-                _depth = deserializer._reader.Depth;
             }
 
             public int? SizeOpt => null;
