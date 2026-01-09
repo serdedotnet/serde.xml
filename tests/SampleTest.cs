@@ -6,7 +6,7 @@ using System.IO;
 using Xunit;
 using System.Globalization;
 
-namespace Serde.Test;
+namespace Serde.Xml.Test;
 
 public partial class SampleTest
 {

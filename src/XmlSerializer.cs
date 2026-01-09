@@ -8,7 +8,7 @@ using Antlr4.Runtime;
 using Antlr4.Runtime.Misc;
 using Antlr4.Runtime.Tree;
 
-namespace Serde;
+namespace Serde.Xml;
 
 public sealed partial class XmlSerializer
 {
@@ -20,6 +20,18 @@ public sealed partial class XmlSerializer
 
     public static string Serialize<T>(T t) where T : ISerializeProvider<T>
         => Serialize(t, new XmlWriterSettings() { Indent = true });
+
+    public static TProvider Deserialize<TProvider>(string s)
+        where TProvider : IDeserializeProvider<TProvider>
+    {
+        return Deserialize(s, TProvider.Instance);
+    }
+
+    public static T Deserialize<T>(string s, IDeserialize<T> deserialize)
+    {
+        using var deserializer = new Deserializer(s);
+        return deserialize.Deserialize(deserializer);
+    }
 
     private static string Serialize<T>(T s, XmlWriterSettings? settings) where T : ISerializeProvider<T>
     {
@@ -101,7 +113,18 @@ public sealed partial class XmlSerializer : ISerializer
 
     public void WriteU16(ushort u16) => WriteI64(u16);
 
-    public void WriteU32(uint u32) => WriteI64(u32);
+    public void WriteU32(uint u32)
+    {
+        if (_state == State.Enumerable)
+        {
+            _writer.WriteStartElement("unsignedInt");
+        }
+        _writer.WriteValue(u32);
+        if (_state == State.Enumerable)
+        {
+            _writer.WriteEndElement();
+        }
+    }
 
     public void WriteU64(ulong u64)
     {
@@ -149,7 +172,13 @@ public sealed partial class XmlSerializer : ISerializer
             {
                 _buffer.Append("ArrayOf");
             }
-            var name = context.qualifiedName().children[^1];
+            var name = context.qualifiedName().children[^1].ToString();
+            name = name switch
+            {
+                "Int32" => "Int",
+                "UInt32" => "UnsignedInt",
+                _ => name
+            };
             _buffer.Append(name);
         }
         public override void EnterGenerics([NotNull] ReflectionTypeNameParser.GenericsContext context)
@@ -188,10 +217,6 @@ public sealed partial class XmlSerializer : ISerializer
 
         void ITypeSerializer.End(ISerdeInfo typeInfo)
         {
-            if (_savedState == State.Enumerable)
-            {
-                _serializer._writer.WriteEndElement();
-            }
             _serializer._state = State.Enumerable;
         }
 
@@ -298,7 +323,12 @@ public sealed partial class XmlSerializer : ISerializer
         public void WriteValue<T>(ISerdeInfo typeInfo, int index, T value, ISerialize<T> serialize)
             where T : class?
         {
+#pragma warning disable SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+            var elementInfo = typeInfo.GetFieldInfo(0);
+#pragma warning restore SerdeExperimentalFieldInfo // Type is for evaluation purposes only and is subject to change or removal in future updates. Suppress this diagnostic to proceed.
+            _serializer._writer.WriteStartElement(FormatTypeName(elementInfo.Name));
             serialize.Serialize(value, _serializer);
+            _serializer._writer.WriteEndElement();
         }
     }
 
@@ -309,10 +339,6 @@ public sealed partial class XmlSerializer : ISerializer
             case InfoKind.List:
             {
                 var savedState = _state;
-                if (savedState == State.Enumerable)
-                {
-                    _writer.WriteStartElement(FormatTypeName(typeInfo.Name));
-                }
                 _state = State.Enumerable;
                 return new SerializeCollectionImpl(this, savedState);
             }
@@ -333,7 +359,7 @@ public sealed partial class XmlSerializer : ISerializer
             {
                 var saved = _state;
                 bool writeEnd;
-                if (_state is State.Start or State.Enumerable)
+                if (_state is State.Start)
                 {
                     _writer.WriteStartElement(typeInfo.Name);
                     writeEnd = true;
@@ -518,5 +544,6 @@ public sealed partial class XmlSerializer : ISerializer
             _parent._writer.WriteStartElement(name);
             _parent._writer.WriteEndElement();
         }
+
     }
 }
