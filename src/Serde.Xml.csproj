@@ -7,7 +7,7 @@
 
     <!-- Package settings -->
     <PackageId>Serde.Xml</PackageId>
-    <Version>0.3.0-preview1</Version>
+    <Version>0.3.0</Version>
     <IsPackable>true</IsPackable>
     <PackageLicenseExpression>BSD-3-Clause</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/serdedotnet/serde.xml</RepositoryUrl>
