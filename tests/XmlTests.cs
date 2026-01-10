@@ -352,4 +352,28 @@ public partial class XmlTests
         Assert.Equal(original.Middle.Inner.InnerText, deserialized.Middle.Inner.InnerText);
         Assert.Equal(original.Middle.Inner.InnerFlag, deserialized.Middle.Inner.InnerFlag);
     }
+
+    /// <summary>
+    /// Test that when deserialization throws an exception, we get the original exception
+    /// rather than an exception from Dispose (e.g., "Deserializer disposed before reaching end of XML").
+    /// </summary>
+    [Fact]
+    public void DeserializeExceptionNotHiddenByDispose()
+    {
+        // XML with an invalid boolean value AND extra content after it.
+        // This causes:
+        // 1. FormatException during bool.Parse("notaboolean")
+        // 2. Dispose() would also throw because reader is at <ExtraContent>, not at </BoolStruct>
+        // Without the fix, the Dispose exception would hide the original FormatException.
+        const string invalidXml = """
+<?xml version="1.0" encoding="utf-16"?>
+<BoolStruct>
+  <BoolField>notaboolean</BoolField>
+  <ExtraContent>this causes Dispose to fail</ExtraContent>
+</BoolStruct>
+""";
+        var ex = Assert.Throws<FormatException>(() => XmlSerializer.Deserialize<BoolStruct>(invalidXml));
+        // Verify we got the parsing exception, not an XmlException from Dispose
+        Assert.Contains("notaboolean", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }
