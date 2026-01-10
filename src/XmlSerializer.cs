@@ -26,8 +26,12 @@ public sealed partial class XmlSerializer
 
     public static T Deserialize<T>(string s, IDeserialize<T> deserialize)
     {
-        using var deserializer = new Deserializer(s);
-        return deserialize.Deserialize(deserializer);
+        var deserializer = new Deserializer(s);
+        var result = deserialize.Deserialize(deserializer);
+        // Call Dispose manually to avoid a try-finally. If an exception is thrown during
+        // deserialization, we don't want exceptions from Dispose to hide the original exception.
+        deserializer.Dispose();
+        return result;
     }
 
     private static string Serialize<T>(T s, XmlWriterSettings? settings) where T : ISerializeProvider<T>
