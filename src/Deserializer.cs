@@ -28,7 +28,19 @@ partial class XmlSerializer
             // Move to the first content element (skip XML declaration)
             _reader.MoveToContent();
             // Read the root element start
-            _reader.ReadStartElement();
+            if (_reader.NodeType != XmlNodeType.Element)
+            {
+                throw new DeserializeException("Expected an element at the start of the XML.");
+            }
+
+            if (_reader.HasAttributes)
+            {
+                _reader.MoveToFirstAttribute();
+            }
+            else
+            {
+                _reader.ReadStartElement();
+            }
 
             // Initialize cached deserializers
             _deserializeType = new DeserializeType(this);

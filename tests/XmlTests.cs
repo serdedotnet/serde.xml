@@ -353,6 +353,46 @@ public partial class XmlTests
         Assert.Equal(original.Middle.Inner.InnerFlag, deserialized.Middle.Inner.InnerFlag);
     }
 
+    [GenerateSerialize]
+    [GenerateDeserialize]
+    [SerdeTypeOptions(MemberFormat = MemberFormat.None)]
+    public partial class TypeWithAttribute
+    {
+        [System.Xml.Serialization.XmlAttribute]
+        [SerdeMemberOptions(ProvideAttributes = true)]
+        public required string Name { get; set; }
+
+        public int Value { get; set; }
+    }
+
+    [Fact]
+    public void AttributeDeserializeTest()
+    {
+        const string xml = """
+<?xml version="1.0" encoding="utf-16"?>
+<TypeWithAttribute Name="TestName">
+  <Value>42</Value>
+</TypeWithAttribute>
+""";
+        var deserialized = XmlSerializer.Deserialize<TypeWithAttribute>(xml);
+        Assert.Equal("TestName", deserialized.Name);
+        Assert.Equal(42, deserialized.Value);
+    }
+
+    [Fact]
+    public void AttributeRoundTripTest()
+    {
+        var original = new TypeWithAttribute
+        {
+            Name = "RoundTripName",
+            Value = 123
+        };
+        var serialized = XmlSerializer.Serialize(original);
+        var deserialized = XmlSerializer.Deserialize<TypeWithAttribute>(serialized);
+        Assert.Equal(original.Name, deserialized.Name);
+        Assert.Equal(original.Value, deserialized.Value);
+    }
+
     /// <summary>
     /// Test that when deserialization throws an exception, we get the original exception
     /// rather than an exception from Dispose (e.g., "Deserializer disposed before reaching end of XML").

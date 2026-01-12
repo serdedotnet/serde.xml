@@ -45,16 +45,9 @@ partial class XmlSerializer
                 int index;
 
                 // First read all attributes
-                if (_inAttributes && _currentAttributeIndex < _attributeCount)
+                if (_inAttributes)
                 {
-                    reader.MoveToAttribute(_currentAttributeIndex);
                     var attrName = reader.Name;
-                    _currentAttributeIndex++;
-                    if (_currentAttributeIndex >= _attributeCount)
-                    {
-                        _inAttributes = false;
-                        reader.MoveToElement();
-                    }
                     index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(attrName));
                     return (index, index == ITypeDeserializer.IndexNotFound ? attrName : null);
                 }
@@ -92,7 +85,13 @@ partial class XmlSerializer
                 // If we're on an attribute, read attribute value
                 if (reader.NodeType == XmlNodeType.Attribute)
                 {
-                    return reader.Value;
+                    var v = reader.Value;
+                    if (!reader.MoveToNextAttribute())
+                    {
+                        _inAttributes = false;
+                        _ = reader.Read();
+                    }
+                    return v;
                 }
                 // Otherwise read content
                 var content = reader.ReadContentAsString();
@@ -154,7 +153,19 @@ partial class XmlSerializer
 
             public void SkipValue(ISerdeInfo info, int index)
             {
+                var reader = _deserializer._reader;
+                if (reader.NodeType == XmlNodeType.Attribute)
+                {
+                    // If we're on an attribute, just skip to the next attribute/element
+                    reader.MoveToNextAttribute();
+                    return;
+                }
+
                 _deserializer._reader.Skip();
+                if (_inAttributes && _currentAttributeIndex == 0)
+                {
+                    _inAttributes = false;
+                }
             }
         }
     }
