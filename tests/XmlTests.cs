@@ -394,6 +394,23 @@ public partial class XmlTests
     }
 
     /// <summary>
+    /// Test deserializing a document that has attributes, but none of them match any fields.
+    /// The unknown attributes should be skipped.
+    /// </summary>
+    [Fact]
+    public void UnknownAttributesSkippedTest()
+    {
+        const string xml = """
+<?xml version="1.0" encoding="utf-16"?>
+<BoolStruct UnknownAttr="ignored" AnotherUnknown="also ignored">
+  <BoolField>true</BoolField>
+</BoolStruct>
+""";
+        var deserialized = XmlSerializer.Deserialize<BoolStruct>(xml);
+        Assert.True(deserialized.BoolField);
+    }
+
+    /// <summary>
     /// Test that when deserialization throws an exception, we get the original exception
     /// rather than an exception from Dispose (e.g., "Deserializer disposed before reaching end of XML").
     /// </summary>

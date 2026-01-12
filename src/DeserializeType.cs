@@ -157,7 +157,11 @@ partial class XmlSerializer
                 if (reader.NodeType == XmlNodeType.Attribute)
                 {
                     // If we're on an attribute, just skip to the next attribute/element
-                    reader.MoveToNextAttribute();
+                    if (!reader.MoveToNextAttribute())
+                    {
+                        _inAttributes = false;
+                        _ = reader.Read();
+                    }
                     return;
                 }
 
