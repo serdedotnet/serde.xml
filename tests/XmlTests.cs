@@ -410,6 +410,48 @@ public partial class XmlTests
         Assert.True(deserialized.BoolField);
     }
 
+    [GenerateSerialize]
+    [GenerateDeserialize]
+    [SerdeTypeOptions(MemberFormat = MemberFormat.None)]
+    public partial class ListItemWithAttribute
+    {
+        [System.Xml.Serialization.XmlAttribute]
+        [SerdeMemberOptions(ProvideAttributes = true)]
+        public required string Name { get; set; }
+    }
+
+    [GenerateSerialize]
+    [GenerateDeserialize]
+    [SerdeTypeOptions(MemberFormat = MemberFormat.None)]
+    public partial class ParentWithAttributeOnlyList
+    {
+        public ListItemWithAttribute[] Items { get; set; } = [];
+    }
+
+    /// <summary>
+    /// Test deserializing a list where each element only has attributes (no child elements).
+    /// This is a common XML pattern with self-closing elements.
+    /// </summary>
+    [Fact]
+    public void ListWithAttributeOnlyElementsTest()
+    {
+        const string xml = """
+<?xml version="1.0" encoding="utf-16"?>
+<ParentWithAttributeOnlyList>
+  <Items>
+    <ListItemWithAttribute Name="elem1" />
+    <ListItemWithAttribute Name="elem2" />
+    <ListItemWithAttribute Name="elem3" />
+  </Items>
+</ParentWithAttributeOnlyList>
+""";
+        var deserialized = XmlSerializer.Deserialize<ParentWithAttributeOnlyList>(xml);
+        Assert.Equal(3, deserialized.Items.Length);
+        Assert.Equal("elem1", deserialized.Items[0].Name);
+        Assert.Equal("elem2", deserialized.Items[1].Name);
+        Assert.Equal("elem3", deserialized.Items[2].Name);
+    }
+
     /// <summary>
     /// Test that when deserialization throws an exception, we get the original exception
     /// rather than an exception from Dispose (e.g., "Deserializer disposed before reaching end of XML").

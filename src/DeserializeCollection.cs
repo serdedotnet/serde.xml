@@ -42,6 +42,9 @@ partial class XmlSerializer
                 // Check if we've reached the end of the collection
                 if (reader.NodeType == XmlNodeType.EndElement)
                 {
+                    // Consume our end element before returning - deserializers are responsible
+                    // for fully consuming themselves, leaving cursor after the element.
+                    reader.ReadEndElement();
                     return ITypeDeserializer.EndOfType;
                 }
 
@@ -53,6 +56,24 @@ partial class XmlSerializer
                 throw new DeserializeException($"Unexpected XML node type {reader.NodeType} while reading collection.");
             }
 
+            public T ReadValue<T>(ISerdeInfo info, int index, IDeserialize<T> deserialize)
+                where T : class?
+            {
+                // XML doesn't really have lists, so lists are treated as repeated elements
+                // with the type name as the element name.
+                // The inner deserializer is responsible for fully consuming itself,
+                // including its end element.
+                var result = deserialize.Deserialize(_deserializer);
+                _index++;
+                return result;
+            }
+
+            public void SkipValue(ISerdeInfo info, int index)
+            {
+                _deserializer._reader.Skip();
+                _index++;
+            }
+
             public (int, string?) TryReadIndexWithName(ISerdeInfo info)
             {
                 return (TryReadIndex(info), null);
@@ -60,11 +81,7 @@ partial class XmlSerializer
 
             public void End(ISerdeInfo info)
             {
-                var reader = _deserializer._reader;
-                if (reader.NodeType == XmlNodeType.EndElement)
-                {
-                    reader.ReadEndElement();
-                }
+                // End element already consumed when TryReadIndex returned EndOfType
             }
 
             private string ReadElementContent()
@@ -108,25 +125,6 @@ partial class XmlSerializer
                 var span = writer.GetSpan(bytes.Length);
                 bytes.CopyTo(span);
                 writer.Advance(bytes.Length);
-            }
-
-            public T ReadValue<T>(ISerdeInfo info, int index, IDeserialize<T> deserialize)
-                where T : class?
-            {
-                // XML doesn't really have lists, so lists are treated as repeated elements
-                // with the type name as the element name.
-                var reader = _deserializer._reader;
-                reader.ReadStartElement();
-                var result = deserialize.Deserialize(_deserializer);
-                _deserializer._reader.ReadEndElement();
-                _index++;
-                return result;
-            }
-
-            public void SkipValue(ISerdeInfo info, int index)
-            {
-                _deserializer._reader.Skip();
-                _index++;
             }
         }
     }
