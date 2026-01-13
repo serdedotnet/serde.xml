@@ -1,8 +1,10 @@
 
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Globalization;
 using System.Xml;
+using System.Xml.Serialization;
 
 namespace Serde.Xml;
 
@@ -18,18 +20,21 @@ partial class XmlSerializer
             private readonly Deserializer _deserializer;
             private int _attributeCount;
             private int _currentAttributeIndex;
-            private bool _inAttributes;
+            private State _state;
+
+            private enum State
+            {
+                ReadingAttributes,
+                FinishedAttributes,
+                ReadingElements,
+            }
 
             public DeserializeType(Deserializer deserializer)
             {
                 _deserializer = deserializer;
-            }
-
-            public void Initialize()
-            {
                 _attributeCount = _deserializer._reader.AttributeCount;
                 _currentAttributeIndex = 0;
-                _inAttributes = _attributeCount > 0;
+                _state = _attributeCount > 0 ? State.ReadingAttributes : State.FinishedAttributes;
             }
 
             public int? SizeOpt => null;
@@ -39,21 +44,70 @@ partial class XmlSerializer
                 return TryReadIndexWithName(info).Item1;
             }
 
+            private int TryGetIndexWithAttributes(ISerdeInfo info, string attrName)
+            {
+                // First try to read standard property info
+                var attrNameU8 = System.Text.Encoding.UTF8.GetBytes(attrName);
+                var index = info.TryGetIndex(attrNameU8);
+                if (index != ITypeDeserializer.IndexNotFound)
+                {
+                    return index;
+                }
+
+                // Search the attributes for a match
+                for (int i = 0; i < info.FieldCount; i++)
+                {
+                    var attrs = info.GetFieldAttributes(i);
+                    foreach (var attr in attrs)
+                    {
+                        if (attr.AttributeType == typeof(XmlAttributeAttribute) ||
+                            attr.AttributeType == typeof(XmlElementAttribute))
+                        {
+                            var fieldName = (string)attr.ConstructorArguments[0].Value!;
+                            if (fieldName == attrName)
+                            {
+                                return i;
+                            }
+                        }
+                    }
+                }
+
+                return ITypeDeserializer.IndexNotFound;
+            }
+
             public (int, string?) TryReadIndexWithName(ISerdeInfo info)
             {
                 var reader = _deserializer._reader;
                 int index;
 
                 // First read all attributes
-                if (_inAttributes)
+                if (_state == State.ReadingAttributes)
                 {
                     var attrName = reader.Name;
-                    index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(attrName));
+                    index = TryGetIndexWithAttributes(info, attrName);
                     return (index, index == ITypeDeserializer.IndexNotFound ? attrName : null);
                 }
 
+                if (reader.EOF)
+                {
+                    throw new DeserializeException("Unexpected end of XML while reading type.");
+                }
+
+                if (_state == State.FinishedAttributes)
+                {
+                    if (reader.IsEmptyElement)
+                    {
+                        return (ITypeDeserializer.EndOfType, null);
+                    }
+                    _state = State.ReadingElements;
+                }
+
+                Debug.Assert(_state == State.ReadingElements);
+
+                reader.ReadStartElement();
+
                 // Then read child elements
-                if (reader.NodeType == XmlNodeType.EndElement || reader.EOF)
+                if (reader.NodeType is XmlNodeType.EndElement)
                 {
                     return (ITypeDeserializer.EndOfType, null);
                 }
@@ -64,19 +118,8 @@ partial class XmlSerializer
                 }
 
                 var elementName = reader.Name;
-                reader.ReadStartElement();
-                index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(elementName));
+                index = TryGetIndexWithAttributes(info, elementName);
                 return (index, index == ITypeDeserializer.IndexNotFound ? elementName : null);
-            }
-
-            public void End(ISerdeInfo info)
-            {
-                var reader = _deserializer._reader;
-                // Read the end element if we're at one
-                if (reader.NodeType == XmlNodeType.EndElement)
-                {
-                    reader.ReadEndElement();
-                }
             }
 
             private string ReadContent(ISerdeInfo info, int index)
@@ -88,8 +131,7 @@ partial class XmlSerializer
                     var v = reader.Value;
                     if (!reader.MoveToNextAttribute())
                     {
-                        _inAttributes = false;
-                        _ = reader.Read();
+                        _state = State.FinishedAttributes;
                     }
                     return v;
                 }
@@ -156,19 +198,19 @@ partial class XmlSerializer
                 var reader = _deserializer._reader;
                 if (reader.NodeType == XmlNodeType.Attribute)
                 {
-                    // If we're on an attribute, just skip to the next attribute/element
+                    // If we're on an attribute, just skip to the next attribute
                     if (!reader.MoveToNextAttribute())
                     {
-                        _inAttributes = false;
-                        _ = reader.Read();
+                        _state = State.FinishedAttributes;
+                        reader.MoveToElement();
                     }
                     return;
                 }
 
                 _deserializer._reader.Skip();
-                if (_inAttributes && _currentAttributeIndex == 0)
+                if (_state == State.ReadingAttributes && _currentAttributeIndex == 0)
                 {
-                    _inAttributes = false;
+                    _state = State.FinishedAttributes;
                 }
             }
         }

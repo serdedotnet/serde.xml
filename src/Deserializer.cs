@@ -12,7 +12,6 @@ partial class XmlSerializer
     private sealed partial class Deserializer : IDeserializer
     {
         private readonly XmlReader _reader;
-        private readonly DeserializeType _deserializeType;
         private readonly DeserializeCollection _deserializeCollection;
         private readonly DeserializeEnum _deserializeEnum;
 
@@ -37,13 +36,8 @@ partial class XmlSerializer
             {
                 _reader.MoveToFirstAttribute();
             }
-            else
-            {
-                _reader.ReadStartElement();
-            }
 
             // Initialize cached deserializers
-            _deserializeType = new DeserializeType(this);
             _deserializeCollection = new DeserializeCollection(this);
             _deserializeEnum = new DeserializeEnum(this);
         }
@@ -156,13 +150,14 @@ partial class XmlSerializer
         {
             if (typeInfo.Kind == InfoKind.List || typeInfo.Kind == InfoKind.Dictionary)
             {
+                // Collections are always nested so we want to read the start element here
+                _reader.ReadStartElement();
                 _deserializeCollection.Initialize(typeInfo);
                 return _deserializeCollection;
             }
             else if (typeInfo.Kind == InfoKind.CustomType || typeInfo.Kind == InfoKind.Nullable)
             {
-                _deserializeType.Initialize();
-                return _deserializeType;
+                return new DeserializeType(this);
             }
             else if (typeInfo.Kind == InfoKind.Enum)
             {

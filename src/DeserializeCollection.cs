@@ -116,7 +116,14 @@ partial class XmlSerializer
                 // XML doesn't really have lists, so lists are treated as repeated elements
                 // with the type name as the element name.
                 var reader = _deserializer._reader;
-                reader.ReadStartElement();
+                if (reader.HasAttributes)
+                {
+                    reader.MoveToFirstAttribute();
+                }
+                else
+                {
+                    reader.ReadStartElement();
+                }
                 var result = deserialize.Deserialize(_deserializer);
                 _deserializer._reader.ReadEndElement();
                 _index++;
