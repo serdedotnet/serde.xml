@@ -5,7 +5,7 @@
     <Deterministic>true</Deterministic>
     <TestTfm>net8.0</TestTfm>
     <SerdeAssemblyVersion>0.3.0</SerdeAssemblyVersion>
-    <SerdePkgVersion>0.3.1</SerdePkgVersion>
+    <SerdePkgVersion>0.3.2</SerdePkgVersion>
     <UseMicrosoftTestingPlatformRunner>true</UseMicrosoftTestingPlatformRunner>
   </PropertyGroup>
 </Project>
