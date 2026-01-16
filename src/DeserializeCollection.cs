@@ -23,11 +23,6 @@ partial class XmlSerializer
                 _deserializer = deserializer;
             }
 
-            public void Initialize(ISerdeInfo typeInfo)
-            {
-                _index = 0;
-            }
-
             public int? SizeOpt => null;
 
             public int TryReadIndex(ISerdeInfo info)

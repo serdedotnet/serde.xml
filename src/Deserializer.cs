@@ -12,7 +12,6 @@ partial class XmlSerializer
     private sealed partial class Deserializer : IDeserializer
     {
         private readonly XmlReader _reader;
-        private readonly DeserializeCollection _deserializeCollection;
         private readonly DeserializeEnum _deserializeEnum;
 
         public Deserializer(string xml)
@@ -33,7 +32,6 @@ partial class XmlSerializer
             }
 
             // Initialize cached deserializers
-            _deserializeCollection = new DeserializeCollection(this);
             _deserializeEnum = new DeserializeEnum(this);
         }
 
@@ -147,8 +145,7 @@ partial class XmlSerializer
             {
                 // Collections are always nested so we want to read the start element here
                 _reader.ReadStartElement();
-                _deserializeCollection.Initialize(typeInfo);
-                return _deserializeCollection;
+                return new DeserializeCollection(this);
             }
             else if (typeInfo.Kind == InfoKind.CustomType || typeInfo.Kind == InfoKind.Nullable)
             {
