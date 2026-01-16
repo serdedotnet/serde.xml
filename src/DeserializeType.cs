@@ -1,8 +1,10 @@
 
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Globalization;
 using System.Xml;
+using System.Xml.Serialization;
 
 namespace Serde.Xml;
 
@@ -17,19 +19,30 @@ partial class XmlSerializer
         {
             private readonly Deserializer _deserializer;
             private int _attributeCount;
-            private int _currentAttributeIndex;
-            private bool _inAttributes;
+            private State _state;
 
-            public DeserializeType(Deserializer deserializer)
+            private enum State
             {
-                _deserializer = deserializer;
+                ReadingAttributes,
+                FinishedAttributes,
+                ReadingElements,
             }
 
-            public void Initialize()
+            /// <summary>
+            /// Expects input to be positioned at the start of an element representing the type.
+            /// This allows for reading the attributes or content, or skipping the whole element
+            /// entirely if it's empty.
+            /// </summary>
+            public DeserializeType(Deserializer deserializer)
             {
+                Debug.Assert(deserializer._reader.NodeType == XmlNodeType.Element);
+                _deserializer = deserializer;
                 _attributeCount = _deserializer._reader.AttributeCount;
-                _currentAttributeIndex = 0;
-                _inAttributes = _attributeCount > 0;
+                _state = _attributeCount > 0 ? State.ReadingAttributes : State.FinishedAttributes;
+                if (_state == State.ReadingAttributes)
+                {
+                    _deserializer._reader.MoveToFirstAttribute();
+                }
             }
 
             public int? SizeOpt => null;
@@ -39,22 +52,73 @@ partial class XmlSerializer
                 return TryReadIndexWithName(info).Item1;
             }
 
+            private int TryGetIndexWithAttributes(ISerdeInfo info, string attrName)
+            {
+                // First try to read standard property info
+                var attrNameU8 = System.Text.Encoding.UTF8.GetBytes(attrName);
+                var index = info.TryGetIndex(attrNameU8);
+                if (index != ITypeDeserializer.IndexNotFound)
+                {
+                    return index;
+                }
+
+                // Search the attributes for a match
+                for (int i = 0; i < info.FieldCount; i++)
+                {
+                    var attrs = info.GetFieldAttributes(i);
+                    foreach (var attr in attrs)
+                    {
+                        if ((attr.AttributeType == typeof(XmlAttributeAttribute) || attr.AttributeType == typeof(XmlElementAttribute)) &&
+                            attr.ConstructorArguments is [ { Value: string fieldName } ] &&
+                            fieldName == attrName)
+                        {
+                                return i;
+                        }
+                    }
+                }
+
+                return ITypeDeserializer.IndexNotFound;
+            }
+
             public (int, string?) TryReadIndexWithName(ISerdeInfo info)
             {
                 var reader = _deserializer._reader;
                 int index;
 
                 // First read all attributes
-                if (_inAttributes)
+                if (_state == State.ReadingAttributes)
                 {
                     var attrName = reader.Name;
-                    index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(attrName));
+                    index = TryGetIndexWithAttributes(info, attrName);
                     return (index, index == ITypeDeserializer.IndexNotFound ? attrName : null);
                 }
 
-                // Then read child elements
-                if (reader.NodeType == XmlNodeType.EndElement || reader.EOF)
+                if (reader.EOF)
                 {
+                    throw new DeserializeException("Unexpected end of XML while reading type.");
+                }
+
+                if (_state == State.FinishedAttributes)
+                {
+                    if (reader.IsEmptyElement)
+                    {
+                        // Consume the empty element and signal end of type
+                        reader.Read();
+                        return (ITypeDeserializer.EndOfType, null);
+                    }
+                    _state = State.ReadingElements;
+                    reader.ReadStartElement(); // move to first child element
+                }
+
+                Debug.Assert(_state == State.ReadingElements);
+
+
+                // Then read child elements
+                if (reader.NodeType is XmlNodeType.EndElement)
+                {
+                    // Consume our end element before returning - deserializers are responsible
+                    // for fully consuming themselves, leaving cursor after the element.
+                    reader.ReadEndElement();
                     return (ITypeDeserializer.EndOfType, null);
                 }
 
@@ -64,19 +128,8 @@ partial class XmlSerializer
                 }
 
                 var elementName = reader.Name;
-                reader.ReadStartElement();
-                index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(elementName));
+                index = TryGetIndexWithAttributes(info, elementName);
                 return (index, index == ITypeDeserializer.IndexNotFound ? elementName : null);
-            }
-
-            public void End(ISerdeInfo info)
-            {
-                var reader = _deserializer._reader;
-                // Read the end element if we're at one
-                if (reader.NodeType == XmlNodeType.EndElement)
-                {
-                    reader.ReadEndElement();
-                }
             }
 
             private string ReadContent(ISerdeInfo info, int index)
@@ -88,20 +141,13 @@ partial class XmlSerializer
                     var v = reader.Value;
                     if (!reader.MoveToNextAttribute())
                     {
-                        _inAttributes = false;
-                        _ = reader.Read();
+                        _state = State.FinishedAttributes;
+                        reader.MoveToElement();
                     }
                     return v;
                 }
-                // Otherwise read content
-                var content = reader.ReadContentAsString();
-                // Every field should be followed by an end element with the name of the field
-                var fieldName = info.GetFieldStringName(index);
-                if (reader.NodeType != XmlNodeType.EndElement || reader.Name != fieldName)
-                {
-                    throw new DeserializeException($"Expected end element </{fieldName}> but found {reader.NodeType} with name {reader.Name}.");
-                }
-                reader.ReadEndElement();
+                // Otherwise read content. We should be on an element.
+                var content = reader.ReadElementContentAsString();
                 return content;
             }
 
@@ -144,11 +190,10 @@ partial class XmlSerializer
             public T ReadValue<T>(ISerdeInfo info, int index, IDeserialize<T> deserialize)
                 where T : class?
             {
-                // TryReadIndex should have already advanced to the nested element
-                var result = deserialize.Deserialize(_deserializer);
-                // After the inner deserializer completes, consume the end element for the field
-                _deserializer._reader.ReadEndElement();
-                return result;
+                // TryReadIndex should have already advanced to the nested element.
+                // The inner deserializer is responsible for fully consuming itself,
+                // including its end element.
+                return deserialize.Deserialize(_deserializer);
             }
 
             public void SkipValue(ISerdeInfo info, int index)
@@ -156,20 +201,16 @@ partial class XmlSerializer
                 var reader = _deserializer._reader;
                 if (reader.NodeType == XmlNodeType.Attribute)
                 {
-                    // If we're on an attribute, just skip to the next attribute/element
+                    // If we're on an attribute, just skip to the next attribute
                     if (!reader.MoveToNextAttribute())
                     {
-                        _inAttributes = false;
-                        _ = reader.Read();
+                        _state = State.FinishedAttributes;
+                        reader.MoveToElement();
                     }
                     return;
                 }
 
                 _deserializer._reader.Skip();
-                if (_inAttributes && _currentAttributeIndex == 0)
-                {
-                    _inAttributes = false;
-                }
             }
         }
     }

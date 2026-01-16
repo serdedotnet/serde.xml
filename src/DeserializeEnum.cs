@@ -29,8 +29,12 @@ partial class XmlSerializer
 
             public (int, string?) TryReadIndexWithName(ISerdeInfo info)
             {
-                // Read the enum value as a string. Reader should be advanced to the content.
-                var value = _deserializer._reader.ReadContentAsString();
+                // Read the enum value as a string. Reader should be on the element start.
+                var reader = _deserializer._reader;
+                reader.ReadStartElement();
+                var value = reader.ReadContentAsString();
+                // Consume the end element - deserializers are responsible for fully consuming themselves
+                reader.ReadEndElement();
 
                 // Try to find the index by matching the string value
                 var index = info.TryGetIndex(System.Text.Encoding.UTF8.GetBytes(value));
