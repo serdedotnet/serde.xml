@@ -1,33 +1,12 @@
-# Serde Custom Format Template
+# Serde.Xml
 
-A template repository for creating custom Serde format serializers/deserializers for .NET using [Serde](https://github.com/serdedotnet/serde).
+Serde.Xml is an XML backend for the Serde.NET multi-format serializer/deserializer.
+
+It includes support for a subset of the System.Xml.Serialization attributes, including `XmlAttributeAttribute` and `XmlElementAttribute`.
 
 ## Status
 
-This is a template repository. The structure is set up but implementation is not yet started. To use this template:
-
-1. Fork or use this repository as a template
-2. Rename `Serde.CustomFormat` to your format name (e.g., `Serde.YourFormat`)
-3. Update the solution and project files accordingly
-4. Implement your custom format serializer/deserializer
-
-## Building
-
-```bash
-dotnet build
-```
-
-## Testing
-
-```bash
-dotnet test
-```
-
-## Benchmarking
-
-```bash
-dotnet run --project bench -c Release
-```
+Support for basic scenarios is included. Validation and error messages need to be improved.
 
 ## License
 
